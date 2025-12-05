@@ -13,7 +13,7 @@ const generateToken = (userId) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName } = req.body;
+    const { username, email, password, firstName, lastName, role } = req.body;
 
     // Validation
     if (!username || !email || !password || !firstName || !lastName) {
@@ -35,13 +35,14 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
+    // Create user with role
     const user = await User.create({
       username,
       email,
       password,
       firstName,
-      lastName
+      lastName,
+      role: role || 'user'
     });
 
     // Generate token

@@ -23,6 +23,18 @@ const productSchema = new mongoose.Schema({
     min: [0, 'Quantity cannot be negative'],
     default: 0
   },
+  // Optional: initial stock (approx) used for historical reports
+  initialStock: {
+    type: Number,
+    min: [0, 'Initial stock cannot be negative'],
+    default: null
+  },
+  // Optional reorder level for inventory alerts
+  reorderLevel: {
+    type: Number,
+    min: [0, 'Reorder level cannot be negative'],
+    default: 0
+  },
   category: {
     type: String,
     required: [true, 'Category is required'],

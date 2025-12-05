@@ -23,6 +23,7 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/reports', require('./routes/reports'));
 
 // Health check route
 app.get('/api/health', (req, res) => {

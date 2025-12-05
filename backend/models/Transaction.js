@@ -6,6 +6,10 @@ const transactionSchema = new mongoose.Schema({
     ref: 'Product',
     required: [true, 'Product ID is required']
   },
+  supplierId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Supplier'
+  },
   type: {
     type: String,
     enum: ['in', 'out'],

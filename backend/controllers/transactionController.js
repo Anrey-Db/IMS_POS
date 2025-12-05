@@ -14,6 +14,7 @@ exports.getTransactions = async (req, res) => {
     const transactions = await Transaction.find(query)
       .populate('productId', 'name sku')
       .populate('userId', 'username email')
+      .populate('supplierId', 'name')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ date: -1 });
@@ -41,7 +42,8 @@ exports.getTransaction = async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id)
       .populate('productId')
-      .populate('userId', 'username email');
+      .populate('userId', 'username email')
+      .populate('supplierId', 'name');
 
     if (!transaction) {
       return res.status(404).json({
@@ -65,7 +67,7 @@ exports.getTransaction = async (req, res) => {
 
 exports.createTransaction = async (req, res) => {
   try {
-    const { productId, type, quantity, notes } = req.body;
+    const { productId, supplierId, type, quantity, notes } = req.body;
 
     // Find product
     const product = await Product.findById(productId);
@@ -94,6 +96,7 @@ exports.createTransaction = async (req, res) => {
     // Create transaction
     const transaction = await Transaction.create({
       productId,
+      supplierId,
       type,
       quantity,
       notes,
@@ -102,7 +105,8 @@ exports.createTransaction = async (req, res) => {
 
     const populatedTransaction = await Transaction.findById(transaction._id)
       .populate('productId', 'name sku')
-      .populate('userId', 'username email');
+      .populate('userId', 'username email')
+      .populate('supplierId', 'name');
 
     res.status(201).json({
       success: true,
@@ -153,5 +157,67 @@ exports.deleteTransaction = async (req, res) => {
       message: 'Error deleting transaction',
       error: error.message
     });
+  }
+};
+
+// Create a sale consisting of multiple items. Deducts stock and creates
+// transaction records of type 'out' for each sold item.
+exports.createSale = async (req, res) => {
+  try {
+    const { items = [], paymentMethod, total, tax, grandTotal } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'No items provided for sale' });
+    }
+
+    // First: validate all products and stock availability
+    const productsToUpdate = [];
+    for (const it of items) {
+      const product = await Product.findById(it.productId);
+      if (!product) {
+        return res.status(404).json({ success: false, message: `Product not found: ${it.productId}` });
+      }
+      if ((product.quantity || 0) < (it.quantity || 0)) {
+        return res.status(400).json({ success: false, message: `Insufficient stock for product ${product.name}` });
+      }
+      productsToUpdate.push({ product, qty: it.quantity });
+    }
+
+    // Second: deduct stock for all products
+    for (const p of productsToUpdate) {
+      p.product.quantity -= p.qty;
+      await p.product.save();
+    }
+
+    // Third: create Transaction records for each sold item
+    const created = [];
+    for (const it of items) {
+      const tr = await Transaction.create({
+        productId: it.productId,
+        type: 'out',
+        quantity: it.quantity,
+        notes: `Sale - ${paymentMethod || 'unknown'}`,
+        userId: req.user._id
+      });
+      created.push(tr);
+    }
+
+    // Populate created transactions for response
+    const populated = await Transaction.find({ _id: { $in: created.map(c => c._id) } })
+      .populate('productId', 'name sku')
+      .populate('userId', 'username email')
+      .sort({ date: -1 });
+
+    res.status(201).json({
+      success: true,
+      message: 'Sale processed successfully',
+      data: {
+        transactions: populated,
+        summary: { paymentMethod, total, tax, grandTotal }
+      }
+    });
+  } catch (error) {
+    console.error('createSale error', error);
+    res.status(500).json({ success: false, message: 'Error processing sale', error: error.message });
   }
 };
